@@ -1,0 +1,79 @@
+[
+  {
+    "code": "2345",
+    "title": "Топ ґан: Меверік",
+    "rating": "8.2",
+    "duration": "2г 11хв",
+    "year": "2022",
+    "age_category": "16+",
+    "country": "США",
+    "genre": "Екшн/Пригоди",
+    "poster": "AgACAgIAAxkDAAIIGmiQezzU4wmrNHhyHMnD4tUx6ULDAAJ19DEb-UGBSGthHdGtVp3cAQADAgADeAADNgQ"
+  },
+  {
+    "code": "9999",
+    "title": "Недоторкані / 1+1",
+    "rating": "8.5",
+    "duration": "1г 52хв",
+    "year": "2011",
+    "age_category": "14+",
+    "country": "Франція",
+    "genre": "Комедія/Драма",
+    "poster": "AgACAgIAAxkBAAIMaWiRuVI9u-hPfZpBWA5K4h-_x0NZAAP3MRv5QYlIdCldSKC0Q1cBAAMCAAN4AAM2BA"
+  },
+  {
+    "code": "7486",
+    "title": "Півтора шпигуна",
+    "rating": "6.3",
+    "duration": "1г 56хв",
+    "year": "2016",
+    "age_category": "16+",
+    "country": "США",
+    "genre": "Комедія/Екшн",
+    "poster": "AgACAgIAAxkBAAIM3miRwI0II9ug_BchMnwgX5r7NJVnAAIw9zEb-UGJSD6IUitBU-JbAQADAgADeAADNgQ"
+  },
+  {
+    "code": "4928",
+    "title": "Аутсайдери",
+    "rating": "8.1",
+    "duration": "2г 32хв",
+    "year": "2019",
+    "age_category": "12+",
+    "country": "США",
+    "genre": "Спортивний/Екшн",
+    "poster": "AgACAgIAAxkBAAINPWiR06_YCkcAAYVNIXNVTW-PkrsCyAACbfcxG1xQkEhXhINo6MBcogEAAwIAA3gAAzYE"
+  },
+  {
+    "code": "1231",
+    "title": "Втеча з Шоушенка",
+    "rating": "9.3",
+    "duration": "2г 22хв",
+    "year": "1994",
+    "age_category": "16+",
+    "country": "США",
+    "genre": "Трилер/Кримінал",
+    "poster": "AgACAgIAAxkBAAIOc2iR3q_nUCGcq0vJD8rKcDJMbutpAAJ99TEbqh6QSBQ72ChSNVMxAQADAgADeAADNgQ"
+  },
+  {
+    "code": "4683",
+    "title": "Зелена книга",
+    "rating": "8.2",
+    "duration": "2г 10хв",
+    "year": "2018",
+    "age_category": "12+",
+    "country": "США",
+    "genre": "Комедія/Драма",
+    "poster": "AgACAgIAAxkBAAIOmWiR4C6J8AABi1ZhQ1nSuPUOKvWbIAACi_UxG6oekEhYUeK5B5EzJwEAAwIAA3gAAzYE"
+  },
+  {
+    "code": "7395",
+    "title": "Ґран Туризмо",
+    "rating": "7.1",
+    "duration": "2г 14хв",
+    "year": "2023",
+    "age_category": "16+",
+    "country": "США, Японія",
+    "genre": "Спортивний/Екшн",
+    "poster": "AgACAgIAAxkBAAIO5miR5gh7CPX1jgnL-YcAAW77t2D6IgACMvgxG1xQkEhOiWh5H6r6ZgEAAwIAA3gAAzYE"
+  }
+]
