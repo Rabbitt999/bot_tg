@@ -9,7 +9,7 @@ from telebot import types
 from datetime import datetime, timedelta, timezone
 
 # Конфігурація бота через змінні середовища
-TOKEN = os.getenv('7991439480:AAGR8KyC3RnBEVlYpP8-39ExcI-SSAhmPC0')
+TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 if not TOKEN:
     print("Помилка: Не вказано TELEGRAM_BOT_TOKEN")
     sys.exit(1)
@@ -520,3 +520,4 @@ if __name__ == '__main__':
     print("🤖 Бот запускається...")
     print(f"🛠 Версія Python: {sys.version}")
     print(f"🔑 Адміністратор
+
