@@ -31,6 +31,7 @@ temp_data = {}
 genre_search_data = {}
 user_movie_history = {}
 genre_movie_history = {}
+edit_movie_data = {}
 
 # Словник для перекладу країн з англійської на українську
 COUNTRY_TRANSLATIONS = {
@@ -324,10 +325,40 @@ def send_admin_panel(user_id):
     markup.row('🔍 Завантажити фільм за назвою')
     markup.row('📋 Список фільмів')
     markup.row('🗑️ Видалити всі фільми', '📊 Статистика')
+    markup.row('✏️ Редагування фільмів')  # Нова кнопка
     markup.row('➕ Додати адміна 👤', '➖ Видалити адміна 👤')
     markup.row('👑 Список адміністраторів')
     markup.row('◀️ Назад')
     bot.send_message(user_id, 'Адмін панель:', reply_markup=markup)
+
+
+def send_edit_movie_panel(user_id, movie):
+    """Надсилає панель редагування фільму"""
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.row('✏️ Назва', '⭐ Рейтинг')
+    markup.row('⏱ Тривалість', '📅 Рік')
+    markup.row('🚫 Вік', '🌍 Країна')
+    markup.row('🎭 Жанр', '🖼 Постер')
+    markup.row('🔢 Код фільму')
+    markup.row('◀️ Назад до адмін панелі')
+    
+    caption = (f"🎬 **Редагування фільму:**\n\n"
+               f"📝 Назва: {movie.get('title', 'Невідомо')}\n"
+               f"⭐ Рейтинг: {movie.get('rating', 'Невідомо')}\n"
+               f"⏱ Тривалість: {movie.get('duration', 'Невідомо')}\n"
+               f"📅 Рік: {movie.get('year', 'Невідомо')}\n"
+               f"🚫 Вік: {movie.get('age_category', 'Невідомо')}\n"
+               f"🌍 Країна: {movie.get('country', 'Невідомо')}\n"
+               f"🎭 Жанр: {movie.get('genre', 'Невідомо')}\n"
+               f"🔢 Код: {movie.get('code', 'Невідомо')}")
+    
+    if 'poster' in movie and movie['poster']:
+        try:
+            bot.send_photo(user_id, movie['poster'], caption=caption, parse_mode='Markdown', reply_markup=markup)
+        except:
+            bot.send_message(user_id, caption + f"\n\n🖼 Постер: [є]", parse_mode='Markdown', reply_markup=markup)
+    else:
+        bot.send_message(user_id, caption + f"\n\n🖼 Постер: [відсутній]", parse_mode='Markdown', reply_markup=markup)
 
 
 def format_movie(movie, show_save_button=True, user_id=None):
@@ -528,7 +559,7 @@ def get_tmdb_movie_details(movie_id):
 
 
 def convert_runtime(minutes):
-    """Конвертує хвилини у формат години:хвилини"""
+    """Конвертує хвилини у формат години:хвилины"""
     if not minutes:
         return "Невідомо"
     hours = minutes // 60
@@ -832,6 +863,44 @@ def handle_saved_movie_selection(user_id, message_text):
         bot.send_message(user_id, "❌ Не вдалося розпізнати фільм.")
 
 
+def find_movie_by_code_or_title(search_term):
+    """Знаходить фільм за кодом або назвою"""
+    movies = load_movies()
+    
+    # Пошук за кодом
+    movie_by_code = next((m for m in movies if m.get('code') == search_term), None)
+    if movie_by_code:
+        return movie_by_code
+    
+    # Пошук за назвою (точне співпадіння)
+    normalized_search = re.sub(r'[^a-zA-Zа-яА-ЯіїІЇєЄґҐ0-9]', '', search_term.lower().strip())
+    for movie in movies:
+        if isinstance(movie, dict) and 'title' in movie:
+            normalized_title = re.sub(r'[^a-zA-Zа-яА-ЯіїІЇєЄґҐ0-9]', '', movie['title'].lower().strip())
+            if normalized_title == normalized_search:
+                return movie
+    
+    # Пошук за частиною назви
+    for movie in movies:
+        if isinstance(movie, dict) and 'title' in movie:
+            normalized_title = re.sub(r'[^a-zA-Zа-яА-ЯіїІЇєЄґҐ0-9]', '', movie['title'].lower().strip())
+            if normalized_search in normalized_title:
+                return movie
+    
+    return None
+
+
+def update_movie_in_database(updated_movie):
+    """Оновлює фільм у базі даних"""
+    movies = load_movies()
+    for i, movie in enumerate(movies):
+        if movie.get('code') == updated_movie.get('code'):
+            movies[i] = updated_movie
+            save_movies(movies)
+            return True
+    return False
+
+
 @bot.callback_query_handler(func=lambda call: True)
 def handle_callback_query(call):
     """Обробляє inline кнопки"""
@@ -1098,6 +1167,114 @@ def handle_state(message):
             return
         user_states.pop(user_id, None)
 
+    # Стани для редагування фільмів
+    elif state == 'edit_movie_search':
+        movie = find_movie_by_code_or_title(text)
+        if movie:
+            edit_movie_data[user_id] = movie
+            send_edit_movie_panel(user_id, movie)
+            user_states[user_id] = 'edit_movie_select_field'
+        else:
+            bot.send_message(user_id, '❌ Фільм не знайдено. Спробуйте ще раз ввести код або назву:')
+            return
+
+    elif state == 'edit_movie_select_field':
+        if text == '◀️ Назад до адмін панелі':
+            user_states.pop(user_id, None)
+            edit_movie_data.pop(user_id, None)
+            send_admin_panel(user_id)
+            return
+
+        movie = edit_movie_data.get(user_id)
+        if not movie:
+            bot.send_message(user_id, '❌ Помилка: дані фільму не знайдені.')
+            user_states.pop(user_id, None)
+            send_admin_panel(user_id)
+            return
+
+        field_mapping = {
+            '✏️ Назва': 'title',
+            '⭐ Рейтинг': 'rating',
+            '⏱ Тривалість': 'duration',
+            '📅 Рік': 'year',
+            '🚫 Вік': 'age_category',
+            '🌍 Країна': 'country',
+            '🎭 Жанр': 'genre',
+            '🔢 Код фільму': 'code'
+        }
+
+        if text in field_mapping:
+            field = field_mapping[text]
+            user_states[user_id] = f'edit_movie_{field}'
+            
+            if field == 'code':
+                bot.send_message(user_id, f'Введіть новий код фільму (поточний: {movie.get("code", "Невідомо")}):')
+            else:
+                current_value = movie.get(field, 'Не вказано')
+                bot.send_message(user_id, f'Введіть нове значення для "{text}" (поточне: {current_value}):')
+        
+        elif text == '🖼 Постер':
+            user_states[user_id] = 'edit_movie_poster'
+            bot.send_message(user_id, 'Надішліть новий постер як фото (або крапку "." щоб видалити постер):')
+
+    elif state.startswith('edit_movie_'):
+        movie = edit_movie_data.get(user_id)
+        if not movie:
+            bot.send_message(user_id, '❌ Помилка: дані фільму не знайдені.')
+            user_states.pop(user_id, None)
+            send_admin_panel(user_id)
+            return
+
+        field = state.replace('edit_movie_', '')
+        
+        if field == 'poster':
+            if message.photo:
+                file_id = message.photo[-1].file_id
+                movie['poster'] = file_id
+                bot.send_message(user_id, '✅ Постер оновлено!')
+            elif text == '.':
+                movie['poster'] = ''
+                bot.send_message(user_id, '✅ Постер видалено!')
+            else:
+                bot.send_message(user_id, 'Будь ласка, надішліть фото або крапку "." щоб видалити постер.')
+                return
+        elif field == 'code':
+            if not text.isdigit() or len(text) != 4:
+                bot.send_message(user_id, '❌ Код має бути 4-значним числом. Спробуйте ще раз:')
+                return
+            
+            existing_codes = get_existing_codes()
+            old_code = movie.get('code')
+            if text != old_code and text in existing_codes:
+                bot.send_message(user_id, '❌ Цей код вже використовується іншим фільмом. Спробуйте інший код:')
+                return
+            
+            movie['code'] = text
+            bot.send_message(user_id, '✅ Код фільму оновлено!')
+        elif field == 'age_category':
+            # Конвертуємо віковий рейтинг
+            converted_age = convert_age_rating(text)
+            movie[field] = converted_age
+            bot.send_message(user_id, '✅ Вікову категорію оновлено!')
+        elif field == 'country':
+            # Перекладаємо країну
+            translated_country = translate_country(text)
+            movie[field] = translated_country
+            bot.send_message(user_id, '✅ Країну оновлено!')
+        else:
+            movie[field] = text
+            bot.send_message(user_id, f'✅ {field.capitalize()} оновлено!')
+
+        # Оновлюємо фільм у базі даних
+        if update_movie_in_database(movie):
+            edit_movie_data[user_id] = movie  # Оновлюємо локальну копію
+            send_edit_movie_panel(user_id, movie)
+            user_states[user_id] = 'edit_movie_select_field'
+        else:
+            bot.send_message(user_id, '❌ Помилка при оновленні фільму в базі даних.')
+            user_states.pop(user_id, None)
+            send_admin_panel(user_id)
+
 
 @bot.message_handler(func=lambda message: True, content_types=['text', 'photo'])
 def handle_message(message):
@@ -1227,6 +1404,10 @@ def handle_message(message):
         elif text == '🗑️ Видалити всі фільми' and user_id in load_admins():
             user_states[user_id] = 'confirm_delete_all'
             send_delete_confirmation(user_id)
+
+        elif text == '✏️ Редагування фільмів' and user_id in load_admins():
+            user_states[user_id] = 'edit_movie_search'
+            bot.send_message(user_id, 'Введіть код або назву фільму для редагування:')
 
         elif text == '➕ Додати адміна 👤' and user_id == ADMIN_ID:
             user_states[user_id] = 'add_admin'
