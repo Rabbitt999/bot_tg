@@ -20,10 +20,13 @@ ADMINS_FILE = 'admins.json'
 SAVED_MOVIES_FILE = 'saved_movies.json'
 
 # TMDB API конфігурація
-TMDB_API_KEY = os.getenv('TMDB_API_KEY',
-                         '4819d57a475cf1ba39646b846f3d9d17')
+TMDB_API_KEY = os.getenv('TMDB_API_KEY', '4819d57a475cf1ba39646b846f3d9d17')
 TMDB_BASE_URL = 'https://api.themoviedb.org/3'
 TMDB_IMAGE_BASE_URL = 'https://image.tmdb.org/t/p/w500'
+
+# OMDb API конфігурація (резервний спосіб)
+OMDB_API_KEY = os.getenv('b1add625', 'a17f4a4c')
+OMDB_BASE_URL = 'http://www.omdbapi.com/'
 
 # Глобальні змінні для зберігання стану
 user_states = {}
@@ -86,6 +89,30 @@ COUNTRY_TRANSLATIONS = {
     'Taiwan': 'Тайвань'
 }
 
+# Словник для перекладу жанрів з англійської на українську
+GENRE_TRANSLATIONS = {
+    'Action': 'Екшн',
+    'Adventure': 'Пригоди',
+    'Animation': 'Анімація',
+    'Comedy': 'Комедія',
+    'Crime': 'Кримінал',
+    'Documentary': 'Документальний',
+    'Drama': 'Драма',
+    'Family': 'Сімейний',
+    'Fantasy': 'Фентезі',
+    'History': 'Історичний',
+    'Horror': 'Жахи',
+    'Music': 'Музика',
+    'Mystery': 'Містика',
+    'Romance': 'Мелодрама',
+    'Science Fiction': 'Фантастика',
+    'Sci-Fi': 'Фантастика',
+    'TV Movie': 'Телефільм',
+    'Thriller': 'Трилер',
+    'War': 'Військовий',
+    'Western': 'Вестерн'
+}
+
 
 def translate_country(country_name):
     """Перекладає назву країни з англійської на українську"""
@@ -110,6 +137,31 @@ def translate_country(country_name):
         return ', '.join(translated_countries)
 
     return country_name
+
+
+def translate_genre(genre_name):
+    """Перекладає назву жанру з англійської на українську"""
+    if not genre_name:
+        return "Невідомо"
+
+    genre_name = str(genre_name).strip()
+
+    # Перевіряємо чи є переклад у словнику
+    if genre_name in GENRE_TRANSLATIONS:
+        return GENRE_TRANSLATIONS[genre_name]
+
+    # Якщо це список жанрів через кому, перекладаємо кожен
+    if ',' in genre_name:
+        genres = [g.strip() for g in genre_name.split(',')]
+        translated_genres = []
+        for genre in genres:
+            if genre in GENRE_TRANSLATIONS:
+                translated_genres.append(GENRE_TRANSLATIONS[genre])
+            else:
+                translated_genres.append(genre)
+        return ', '.join(translated_genres)
+
+    return genre_name
 
 
 def convert_age_rating(age_rating):
@@ -311,7 +363,7 @@ def send_main_menu(chat_id):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.row('🔍 Пошук фільму за кодом')
     markup.row('🎲 Випадковий фільм', '🎬 Пошук за жанром')
-    markup.row('💾 Мої збережені фільми')  # Нова кнопка для збережених фільмів
+    markup.row('💾 Мої збережені фільми')
     if str(chat_id) == str(ADMIN_ID):
         markup.row('Адмін панель')
     markup.row('ℹ️ Інформація про бота')
@@ -325,7 +377,7 @@ def send_admin_panel(user_id):
     markup.row('🔍 Завантажити фільм за назвою')
     markup.row('📋 Список фільмів')
     markup.row('🗑️ Видалити всі фільми', '📊 Статистика')
-    markup.row('✏️ Редагування фільмів')  # Нова кнопка
+    markup.row('✏️ Редагування фільмів')
     markup.row('➕ Додати адміна 👤', '➖ Видалити адміна 👤')
     markup.row('👑 Список адміністраторів')
     markup.row('◀️ Назад')
@@ -513,6 +565,8 @@ def delete_all_movies():
     genre_movie_history = {}
 
 
+# ========== TMDB API ФУНКЦІЇ ==========
+
 def search_tmdb_movies(query, year=None):
     """Пошук фільмів на TMDB"""
     try:
@@ -589,8 +643,52 @@ def get_age_rating(movie_details):
         return "16+"
 
 
+# ========== OMDb API ФУНКЦІЇ (РЕЗЕРВНИЙ СПОСІБ) ==========
+
+def search_omdb_movies(query, year=None):
+    """Пошук фільмів на OMDb API"""
+    try:
+        params = {
+            'apikey': OMDB_API_KEY,
+            's': query,
+            'type': 'movie'
+        }
+        if year:
+            params['y'] = year
+
+        response = requests.get(OMDB_BASE_URL, params=params, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            if data.get('Response') == 'True':
+                return data.get('Search', [])
+        return []
+    except Exception as e:
+        print(f"Помилка пошуку на OMDb: {e}")
+        return []
+
+
+def get_omdb_movie_details(imdb_id):
+    """Отримання детальної інформації про фільм з OMDb"""
+    try:
+        params = {
+            'apikey': OMDB_API_KEY,
+            'i': imdb_id,
+            'plot': 'short'
+        }
+
+        response = requests.get(OMDB_BASE_URL, params=params, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            if data.get('Response') == 'True':
+                return data
+        return None
+    except Exception as e:
+        print(f"Помилка отримання деталей фільму з OMDb: {e}")
+        return None
+
+
 def auto_add_movie_from_tmdb(movie_title, user_id, year=None):
-    """Автоматично додає фільм з TMDB"""
+    """Автоматично додає фільм з TMDB (основний спосіб)"""
     try:
         if is_movie_exists(movie_title):
             return False, f"Фільм '{movie_title}' вже існує в базі"
@@ -645,8 +743,92 @@ def auto_add_movie_from_tmdb(movie_title, user_id, year=None):
         return True, movie
 
     except Exception as e:
-        print(f"Помилка автоматичного додавання фільму: {e}")
+        print(f"Помилка автоматичного додавання фільму з TMDB: {e}")
         return False, f"Помилка: {str(e)}"
+
+
+def auto_add_movie_from_omdb(movie_title, user_id, year=None):
+    """Автоматично додає фільм з OMDb API (резервний спосіб)"""
+    try:
+        if is_movie_exists(movie_title):
+            return False, f"Фільм '{movie_title}' вже існує в базі"
+
+        search_results = search_omdb_movies(movie_title, year)
+        if not search_results:
+            return False, "Фільм не знайдено на OMDb"
+
+        movie_data = search_results[0]
+        movie_details = get_omdb_movie_details(movie_data['imdbID'])
+
+        if not movie_details:
+            return False, "Не вдалося отримати деталі фільму"
+
+        final_title = movie_details['Title']
+        if is_movie_exists(final_title):
+            return False, f"Фільм '{final_title}' вже існує в базі"
+
+        code = generate_unique_code()
+
+        # Перекладаємо жанр
+        genre_str = translate_genre(movie_details.get('Genre', 'Невідомо'))
+
+        # Перекладаємо країну
+        country_str = translate_country(movie_details.get('Country', 'Невідомо'))
+
+        rating = movie_details.get('imdbRating', 'Невідомо')
+        if rating != 'N/A':
+            rating = str(round(float(rating), 1))
+
+        # Конвертуємо тривалість
+        runtime = movie_details.get('Runtime', 'N/A')
+        if runtime != 'N/A':
+            runtime = runtime.replace(' min', ' хв')
+
+        # Конвертуємо віковий рейтинг
+        age_rating = convert_age_rating(movie_details.get('Rated', 'Невідомо'))
+
+        movie = {
+            'code': code,
+            'title': final_title,
+            'rating': rating,
+            'duration': runtime,
+            'year': movie_details.get('Year', 'Невідомо')[:4],
+            'age_category': age_rating,
+            'country': country_str,
+            'genre': genre_str,
+            'poster': movie_details.get('Poster', ''),
+            'description': movie_details.get('Plot', ''),
+            'source': 'omdb_auto'
+        }
+
+        existing_movies = load_movies()
+        existing_movies.append(movie)
+        save_movies(existing_movies)
+
+        return True, movie
+
+    except Exception as e:
+        print(f"Помилка автоматичного додавання фільму з OMDb: {e}")
+        return False, f"Помилка: {str(e)}"
+
+
+def auto_add_movie_combined(movie_title, user_id, year=None):
+    """Комбінований спосіб завантаження фільму: спочатку TMDB, потім OMDb"""
+    # Спочатку пробуємо TMDB
+    success, result = auto_add_movie_from_tmdb(movie_title, user_id, year)
+    
+    if success:
+        return success, result
+    
+    # Якщо TMDB не вдалось, пробуємо OMDb
+    print(f"TMDB не вдалось для '{movie_title}', пробуємо OMDb...")
+    success, result = auto_add_movie_from_omdb(movie_title, user_id, year)
+    
+    if success:
+        return success, result
+    
+    # Обидва способи не вдалися
+    return False, f"Не вдалося знайти фільм '{movie_title}' ні на TMDB, ні на OMDb"
 
 
 def process_multiple_movies(user_id, movie_titles_text):
@@ -674,14 +856,20 @@ def process_multiple_movies(user_id, movie_titles_text):
                 text=f"🔄 Обробляю фільми...\n\n{index}/{total_movies} завершено\n\n⚙️ Зараз: {movie_title}"
             )
 
-            # Додаємо фільм
-            success, result = auto_add_movie_from_tmdb(movie_title, user_id)
+            # Додаємо фільм комбінованим способом
+            success, result = auto_add_movie_combined(movie_title, user_id)
 
             if success:
                 if isinstance(result, dict):
-                    successful_movies.append(result['title'])
+                    successful_movies.append({
+                        'title': result['title'],
+                        'source': result.get('source', 'unknown')
+                    })
                 else:
-                    successful_movies.append(movie_title)
+                    successful_movies.append({
+                        'title': movie_title,
+                        'source': 'unknown'
+                    })
             else:
                 failed_movies.append(f"{movie_title} - {result}")
 
@@ -698,16 +886,29 @@ def process_multiple_movies(user_id, movie_titles_text):
     report += f"❌ Не вдалося додати: {len(failed_movies)}\n"
     report += f"📋 Всього оброблено: {total_movies}\n\n"
 
+    # Статистика по джерелам
+    tmdb_count = sum(1 for m in successful_movies if m.get('source') == 'tmdb_auto')
+    omdb_count = sum(1 for m in successful_movies if m.get('source') == 'omdb_auto')
+    unknown_count = len(successful_movies) - tmdb_count - omdb_count
+    
+    if successful_movies:
+        report += f"📡 Джерела: TMDB - {tmdb_count}, OMDb - {omdb_count}"
+        if unknown_count > 0:
+            report += f", Інші - {unknown_count}"
+        report += "\n\n"
+
     if successful_movies:
         report += "**Успішно додані фільми:**\n"
-        for i, title in enumerate(successful_movies[:10], 1):  # Показуємо перші 10
-            report += f"{i}. {title}\n"
+        for i, movie_data in enumerate(successful_movies[:10], 1):
+            title = movie_data['title']
+            source_icon = "🎬" if movie_data.get('source') == 'tmdb_auto' else "📡"
+            report += f"{i}. {source_icon} {title}\n"
         if len(successful_movies) > 10:
             report += f"... та ще {len(successful_movies) - 10} фільмів\n"
 
     if failed_movies:
         report += "\n**Помилки при додаванні:**\n"
-        for i, error in enumerate(failed_movies[:5], 1):  # Показуємо перші 5 помилок
+        for i, error in enumerate(failed_movies[:5], 1):
             report += f"{i}. {error}\n"
         if len(failed_movies) > 5:
             report += f"... та ще {len(failed_movies) - 5} помилок\n"
@@ -719,8 +920,9 @@ def process_multiple_movies(user_id, movie_titles_text):
     # Показуємо кілька останніх успішно доданих фільмів
     if successful_movies:
         bot.send_message(user_id, "🎬 **Останні додані фільми:**")
-        recent_movies = successful_movies[-3:]  # Останні 3 фільми
-        for title in recent_movies:
+        recent_movies_data = successful_movies[-3:]  # Останні 3 фільми
+        for movie_data in recent_movies_data:
+            title = movie_data['title']
             # Знаходимо фільм у базі для відображення інформації
             movies = load_movies()
             movie_info = next((m for m in movies if m.get('title') == title), None)
@@ -1480,6 +1682,11 @@ if __name__ == '__main__':
         print("⚠️  УВАГА: Встановіть свій TMDB API ключ у змінну середовища TMDB_API_KEY")
     else:
         print("✅ TMDB API ключ налаштовано")
+
+    if OMDB_API_KEY == 'a17f4a4c':
+        print("ℹ️  Використовується тестовий OMDb API ключ. Для продакшена отримайте свій ключ на http://www.omdbapi.com/apikey.aspx")
+    else:
+        print("✅ OMDb API ключ налаштовано")
 
     while True:
         try:
