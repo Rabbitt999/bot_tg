@@ -7,6 +7,7 @@ import time
 import requests
 from telebot import types
 from datetime import datetime, timedelta, timezone
+from collections import defaultdict
 
 # Конфігурація бота
 TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '7991439480:AAGR8KyC3RnBEVlYpP8-39ExcI-SSAhmPC0')
@@ -32,6 +33,14 @@ genre_search_data = {}
 user_movie_history = {}
 genre_movie_history = {}
 edit_movie_data = {}
+
+# Система лімітів повідомлень
+user_message_count = defaultdict(list)
+LIMIT_CONFIG = {
+    'random': {'limit': 10, 'seconds': 30, 'message': '🎲 Ви досягли ліміту випадкових фільмів: 10 за 30 секунд. Зачекайте ⏳'},
+    'genre': {'limit': 3, 'seconds': 30, 'message': '🎬 Ви досягли ліміту пошуку за жанром: 3 рази за 30 секунд. Зачекайте ⏳'},
+    'default': {'limit': 10, 'seconds': 30, 'message': '⚡ Ви досягли загального ліміту повідомлень: 10 за 30 секунд. Зачекайте ⏳'}
+}
 
 # Словник для перекладу країн з англійської на українську
 COUNTRY_TRANSLATIONS = {
@@ -85,6 +94,38 @@ COUNTRY_TRANSLATIONS = {
     'Hong Kong': 'Гонконг',
     'Taiwan': 'Тайвань'
 }
+
+
+def check_rate_limit(user_id, action_type='default'):
+    """
+    Перевіряє ліміт повідомлень для користувача
+    Повертає True якщо ліміт не перевищено, False якщо перевищено
+    """
+    if user_id in load_admins():  # Адміни не мають обмежень
+        return True
+        
+    now = time.time()
+    config = LIMIT_CONFIG[action_type]
+    
+    # Очищаємо старі запити
+    user_message_count[user_id] = [
+        timestamp for timestamp in user_message_count[user_id] 
+        if now - timestamp <= config['seconds']
+    ]
+    
+    # Перевіряємо ліміт
+    if len(user_message_count[user_id]) >= config['limit']:
+        return False
+    
+    # Додаємо новий запит
+    user_message_count[user_id].append(now)
+    return True
+
+
+def send_rate_limit_alert(chat_id, action_type='default'):
+    """Надсилає alert-повідомлення про перевищення ліміту"""
+    config = LIMIT_CONFIG[action_type]
+    bot.send_message(chat_id, f"⚠️ {config['message']}")
 
 
 def translate_country(country_name):
@@ -311,7 +352,7 @@ def send_main_menu(chat_id):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.row('🔍 Пошук фільму за кодом')
     markup.row('🎲 Випадковий фільм', '🎬 Пошук за жанром')
-    markup.row('💾 Мої збережені фільми')  # Нова кнопка для збережених фільмів
+    markup.row('💾 Мої збережені фільми')
     if str(chat_id) == str(ADMIN_ID):
         markup.row('Адмін панель')
     markup.row('ℹ️ Інформація про бота')
@@ -325,7 +366,7 @@ def send_admin_panel(user_id):
     markup.row('🔍 Завантажити фільм за назвою')
     markup.row('📋 Список фільмів')
     markup.row('🗑️ Видалити всі фільми', '📊 Статистика')
-    markup.row('✏️ Редагування фільмів')  # Нова кнопка
+    markup.row('✏️ Редагування фільмів')
     markup.row('➕ Додати адміна 👤', '➖ Видалити адміна 👤')
     markup.row('👑 Список адміністраторів')
     markup.row('◀️ Назад')
@@ -1292,10 +1333,16 @@ def handle_message(message):
             return
 
         if text == '🔍 Пошук фільму за кодом':
+            if not check_rate_limit(user_id, 'default'):
+                send_rate_limit_alert(user_id, 'default')
+                return
             bot.send_message(user_id, 'Введіть 4-значний код фільму:')
             user_states[user_id] = 'awaiting_code'
 
         elif text == '🎲 Випадковий фільм':
+            if not check_rate_limit(user_id, 'random'):
+                send_rate_limit_alert(user_id, 'random')
+                return
             movies = load_movies()
             if not movies:
                 bot.send_message(user_id, 'База фільмів порожня.')
@@ -1328,6 +1375,9 @@ def handle_message(message):
                 bot.send_message(user_id, 'Не вдалося знайти фільм.')
 
         elif text == '🎬 Пошук за жанром':
+            if not check_rate_limit(user_id, 'genre'):
+                send_rate_limit_alert(user_id, 'genre')
+                return
             markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
             genres = ['"🎭"Драма', '"😂"Комедія', '"🔫"Бойовик', '"🔥"Екшн', '"🕵️‍♂️"Трилер', '"👻"Жахи', '"🛸"Пригоди',
                       '"🤖"Фантастика']
@@ -1338,6 +1388,9 @@ def handle_message(message):
             user_states[user_id] = 'awaiting_genre'
 
         elif text == '💾 Мої збережені фільми':
+            if not check_rate_limit(user_id, 'default'):
+                send_rate_limit_alert(user_id, 'default')
+                return
             show_saved_movies(user_id)
 
         elif text == '◀️ Назад':
@@ -1413,7 +1466,7 @@ def handle_message(message):
             user_states[user_id] = 'add_admin'
             bot.send_message(user_id, 'Введіть ID користувача, якого хочете додати адміністратором:')
 
-        elif text == '➖ Видалити адміна 👤' and user_id == ADMIN_ID:
+        elif text == '➖ Видалити адміна 👤' и user_id == ADMIN_ID:
             user_states[user_id] = 'remove_admin'
             bot.send_message(user_id, 'Введіть ID користувача, якого хочете видалити з адміністраторів:')
 
@@ -1426,6 +1479,9 @@ def handle_message(message):
                 bot.send_message(user_id, 'Список адміністраторів порожній.')
 
         elif text == 'ℹ️ Інформація про бота':
+            if not check_rate_limit(user_id, 'default'):
+                send_rate_limit_alert(user_id, 'default')
+                return
             info = (
                 "ℹ️ Про бота\n\n"
                 "🔍 Пошук фільму за кодом — введи 4-значний код, щоб дізнатися назву фільму.\n"
@@ -1438,6 +1494,9 @@ def handle_message(message):
             bot.send_message(user_id, info, parse_mode='Markdown')
 
         elif text == '🎬 Показати ще фільми цього жанру':
+            if not check_rate_limit(user_id, 'genre'):
+                send_rate_limit_alert(user_id, 'genre')
+                return
             if user_id in genre_search_data:
                 show_more_genre_movies(user_id, genre_search_data[user_id])
             else:
@@ -1445,6 +1504,9 @@ def handle_message(message):
                 send_main_menu(user_id)
 
         elif text == '🎭 Обрати інший жанр':
+            if not check_rate_limit(user_id, 'genre'):
+                send_rate_limit_alert(user_id, 'genre')
+                return
             markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
             genres = ['"🎭"Драма', '"😂"Комедія', '"🔫"Бойовик', '"🔥"Екшн', '"🕵️‍♂️"Трилер', '"👻"Жахи', '"🛸"Пригоди',
                       '"🤖"Фантастика']
@@ -1465,9 +1527,15 @@ def handle_message(message):
 
         elif text.startswith('🎬 '):
             # Обробка вибору збереженого фільму
+            if not check_rate_limit(user_id, 'default'):
+                send_rate_limit_alert(user_id, 'default')
+                return
             handle_saved_movie_selection(user_id, text)
 
         else:
+            if not check_rate_limit(user_id, 'default'):
+                send_rate_limit_alert(user_id, 'default')
+                return
             bot.send_message(user_id, 'Невідома команда. Оберіть дію з меню.')
     except Exception as e:
         print(f"Помилка в обробнику повідомлень: {e}")
